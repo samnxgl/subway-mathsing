@@ -18,10 +18,39 @@
   const OBSTACLE_SPAWN_INTERVAL_MAX = 90;
   const COIN_SPAWN_INTERVAL = 25;
   const RENDER_DISTANCE = 120;
-  const MATH_TRIGGER_DISTANCE_NORMAL = 200;
-  const MATH_TRIGGER_DISTANCE_FREQUENT = 100;
-  const MATH_TRIGGER_DISTANCE_RARE = 400;
   const MATH_TIMER_SECONDS = 15;
+
+  // ===== PLAYER PROFILES =====
+  // Violet: NumberSense Book 9 (Grade 3, Term 1) - numbers up to 200
+  // Fletcher: NumberSense Book 12 (Grade 3, Term 4) - numbers up to 999
+  const PLAYERS = {
+    violet: {
+      name: "Violet",
+      book: "NumberSense Book 9",
+      color: 0x9b59b6,
+      maxLevel: 5,
+      levelNames: {
+        1: "Addition & subtraction up to 20",
+        2: "Addition & subtraction up to 50",
+        3: "Addition & subtraction up to 99, counting in 2s/5s/10s",
+        4: "Doubling & halving, ×2, ×10",
+        5: "Place value & mixed operations up to 99",
+      },
+    },
+    fletcher: {
+      name: "Fletcher",
+      book: "NumberSense Book 12",
+      color: 0x2ecc71,
+      maxLevel: 5,
+      levelNames: {
+        1: "Addition & subtraction up to 100",
+        2: "Addition & subtraction up to 200, ×2, ×10",
+        3: "Addition & subtraction up to 500, ÷2, ÷10",
+        4: "Operations up to 999, rounding to nearest 10",
+        5: "Mixed operations up to 999, place value",
+      },
+    },
+  };
 
   // ===== GAME STATE =====
   const state = {
@@ -50,9 +79,10 @@
     mathCorrect: 0,
     mathTotal: 0,
     mathStreak: 0,
+    mathWrongStreak: 0,
     soundEnabled: true,
-    difficulty: 2,
-    mathFrequency: "normal",
+    currentPlayer: null, // "violet" or "fletcher"
+    mathLevel: 1,
     animationId: null,
     swipeStartX: 0,
     swipeStartY: 0,
@@ -60,14 +90,16 @@
     railTiles: [],
   };
 
-  // ===== DIFFICULTY DESCRIPTIONS =====
-  const DIFF_DESCRIPTIONS = {
-    1: "Addition & subtraction up to 20",
-    2: "Addition & subtraction up to 50, simple multiplication",
-    3: "Multiplication & division, larger numbers",
-    4: "Mixed operations, multi-step problems",
-  };
-  const DIFF_NAMES = { 1: "Easy", 2: "Medium", 3: "Hard", 4: "Expert" };
+  // ===== LEVEL HELPERS =====
+  function getLevelName() {
+    if (!state.currentPlayer) return "Level 1";
+    return `Level ${state.mathLevel}`;
+  }
+
+  function getLevelDescription() {
+    if (!state.currentPlayer) return "";
+    return PLAYERS[state.currentPlayer].levelNames[state.mathLevel] || "";
+  }
 
   // ===== AUDIO (Web Audio API) =====
   let audioCtx = null;
@@ -737,119 +769,271 @@
     }
   }
 
-  // ===== MATH PROBLEM GENERATOR =====
-  function generateMathProblem(level) {
+  // ===== MATH PROBLEM GENERATOR (NumberSense aligned) =====
+
+  function randInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  function generateVioletProblem(level) {
     let question, answer;
 
     switch (level) {
       case 1: {
-        // Easy: addition & subtraction up to 20
+        // Book 9 Level 1: Addition & subtraction up to 20
         const op = Math.random() > 0.5 ? "+" : "-";
-        let a = Math.floor(Math.random() * 15) + 3;
-        let b = Math.floor(Math.random() * 10) + 1;
+        let a = randInt(2, 15);
+        let b = randInt(1, 10);
+        if (op === "+" && a + b > 20) b = 20 - a;
         if (op === "-" && b > a) [a, b] = [b, a];
         answer = op === "+" ? a + b : a - b;
         question = `${a} ${op} ${b} = ?`;
         break;
       }
       case 2: {
-        // Medium: add/sub up to 50, simple multiplication
-        const r = Math.random();
-        if (r < 0.4) {
-          const a = Math.floor(Math.random() * 40) + 5;
-          const b = Math.floor(Math.random() * 25) + 1;
-          answer = a + b;
-          question = `${a} + ${b} = ?`;
-        } else if (r < 0.75) {
-          let a = Math.floor(Math.random() * 45) + 10;
-          let b = Math.floor(Math.random() * 20) + 1;
-          if (b > a) [a, b] = [b, a];
-          answer = a - b;
-          question = `${a} - ${b} = ?`;
-        } else {
-          const a = Math.floor(Math.random() * 8) + 2;
-          const b = Math.floor(Math.random() * 8) + 2;
-          answer = a * b;
-          question = `${a} \u00d7 ${b} = ?`;
-        }
+        // Book 9 Level 2: Addition & subtraction up to 50
+        const op = Math.random() > 0.5 ? "+" : "-";
+        let a = randInt(10, 40);
+        let b = randInt(3, 20);
+        if (op === "+" && a + b > 50) b = 50 - a;
+        if (op === "-" && b > a) [a, b] = [b, a];
+        answer = op === "+" ? a + b : a - b;
+        question = `${a} ${op} ${b} = ?`;
         break;
       }
       case 3: {
-        // Hard: multiplication, division, larger numbers
+        // Book 9 Level 3: Add/sub up to 99, counting in 2s/5s/10s
         const r = Math.random();
-        if (r < 0.35) {
-          const a = Math.floor(Math.random() * 12) + 2;
-          const b = Math.floor(Math.random() * 12) + 2;
-          answer = a * b;
-          question = `${a} \u00d7 ${b} = ?`;
-        } else if (r < 0.65) {
-          const b = Math.floor(Math.random() * 10) + 2;
-          const answer_ = Math.floor(Math.random() * 12) + 1;
-          const a = b * answer_;
-          answer = answer_;
-          question = `${a} \u00f7 ${b} = ?`;
-        } else {
-          const a = Math.floor(Math.random() * 80) + 20;
-          const b = Math.floor(Math.random() * 50) + 10;
+        if (r < 0.5) {
           const op = Math.random() > 0.5 ? "+" : "-";
-          if (op === "-" && b > a) {
-            answer = a + b;
-            question = `${a + b} - ${a} = ?`;
-          } else {
-            answer = op === "+" ? a + b : a - b;
-            question = `${a} ${op} ${b} = ?`;
-          }
+          let a = randInt(20, 80);
+          let b = randInt(5, 30);
+          if (op === "+" && a + b > 99) b = 99 - a;
+          if (op === "-" && b > a) [a, b] = [b, a];
+          answer = op === "+" ? a + b : a - b;
+          question = `${a} ${op} ${b} = ?`;
+        } else if (r < 0.7) {
+          // Count in 2s: what comes next?
+          const start = randInt(2, 30) * 2;
+          answer = start + 2;
+          question = `${start - 2}, ${start}, ? (count in 2s)`;
+        } else if (r < 0.85) {
+          // Count in 5s
+          const start = randInt(2, 15) * 5;
+          answer = start + 5;
+          question = `${start - 5}, ${start}, ? (count in 5s)`;
+        } else {
+          // Count in 10s
+          const start = randInt(2, 15) * 10;
+          answer = start + 10;
+          question = `${start - 10}, ${start}, ? (count in 10s)`;
         }
         break;
       }
       case 4: {
-        // Expert: mixed ops, multi-step
+        // Book 9 Level 4: Doubling, halving, ×2, ×10
         const r = Math.random();
         if (r < 0.3) {
-          const a = Math.floor(Math.random() * 10) + 2;
-          const b = Math.floor(Math.random() * 10) + 2;
-          const c = Math.floor(Math.random() * 15) + 1;
-          answer = a * b + c;
-          question = `${a} \u00d7 ${b} + ${c} = ?`;
+          // Double
+          const a = randInt(3, 45);
+          answer = a * 2;
+          question = `Double ${a} = ?`;
         } else if (r < 0.55) {
-          const a = Math.floor(Math.random() * 12) + 2;
-          const b = Math.floor(Math.random() * 12) + 2;
-          const c = Math.floor(Math.random() * 20) + 1;
-          answer = a * b - c;
-          if (answer < 0) {
-            answer = a * b + c;
-            question = `${a} \u00d7 ${b} + ${c} = ?`;
-          } else {
-            question = `${a} \u00d7 ${b} - ${c} = ?`;
-          }
+          // Half
+          const a = randInt(2, 40) * 2; // ensure even
+          answer = a / 2;
+          question = `Half of ${a} = ?`;
         } else if (r < 0.75) {
-          const b = Math.floor(Math.random() * 8) + 2;
-          const q = Math.floor(Math.random() * 10) + 2;
-          const a = b * q;
-          const c = Math.floor(Math.random() * 10) + 1;
-          answer = q + c;
-          question = `${a} \u00f7 ${b} + ${c} = ?`;
+          // ×2
+          const a = randInt(3, 50);
+          answer = a * 2;
+          question = `${a} \u00d7 2 = ?`;
         } else {
-          // Squared
-          const a = Math.floor(Math.random() * 10) + 2;
-          answer = a * a;
-          question = `${a}\u00b2 = ?`;
+          // ×10
+          const a = randInt(2, 10);
+          answer = a * 10;
+          question = `${a} \u00d7 10 = ?`;
+        }
+        break;
+      }
+      case 5: {
+        // Book 9 Level 5: Place value & mixed operations up to 99
+        const r = Math.random();
+        if (r < 0.35) {
+          // Place value: tens digit
+          const a = randInt(11, 99);
+          const tens = Math.floor(a / 10);
+          answer = tens;
+          question = `How many tens in ${a}?`;
+        } else if (r < 0.6) {
+          // Place value: units digit
+          const a = randInt(11, 99);
+          answer = a % 10;
+          question = `What is the units digit of ${a}?`;
+        } else {
+          // Mixed add/sub up to 99
+          const a = randInt(20, 70);
+          const b = randInt(10, 25);
+          const c = randInt(1, 10);
+          answer = a + b - c;
+          if (answer > 99) {
+            answer = a - b + c;
+            question = `${a} - ${b} + ${c} = ?`;
+          } else {
+            question = `${a} + ${b} - ${c} = ?`;
+          }
         }
         break;
       }
     }
 
-    // Generate wrong answers
+    return { question, answer };
+  }
+
+  function generateFletcherProblem(level) {
+    let question, answer;
+
+    switch (level) {
+      case 1: {
+        // Book 12 Level 1: Addition & subtraction up to 100
+        const op = Math.random() > 0.5 ? "+" : "-";
+        let a = randInt(15, 80);
+        let b = randInt(5, 40);
+        if (op === "+" && a + b > 100) b = 100 - a;
+        if (op === "-" && b > a) [a, b] = [b, a];
+        answer = op === "+" ? a + b : a - b;
+        question = `${a} ${op} ${b} = ?`;
+        break;
+      }
+      case 2: {
+        // Book 12 Level 2: Add/sub up to 200, ×2, ×10
+        const r = Math.random();
+        if (r < 0.5) {
+          const op = Math.random() > 0.5 ? "+" : "-";
+          let a = randInt(30, 150);
+          let b = randInt(10, 80);
+          if (op === "+" && a + b > 200) b = 200 - a;
+          if (op === "-" && b > a) [a, b] = [b, a];
+          answer = op === "+" ? a + b : a - b;
+          question = `${a} ${op} ${b} = ?`;
+        } else if (r < 0.75) {
+          // ×2
+          const a = randInt(10, 95);
+          answer = a * 2;
+          question = `${a} \u00d7 2 = ?`;
+        } else {
+          // ×10
+          const a = randInt(3, 20);
+          answer = a * 10;
+          question = `${a} \u00d7 10 = ?`;
+        }
+        break;
+      }
+      case 3: {
+        // Book 12 Level 3: Add/sub up to 500, ÷2, ÷10
+        const r = Math.random();
+        if (r < 0.45) {
+          const op = Math.random() > 0.5 ? "+" : "-";
+          let a = randInt(50, 400);
+          let b = randInt(20, 150);
+          if (op === "+" && a + b > 500) b = 500 - a;
+          if (op === "-" && b > a) [a, b] = [b, a];
+          answer = op === "+" ? a + b : a - b;
+          question = `${a} ${op} ${b} = ?`;
+        } else if (r < 0.7) {
+          // ÷2
+          const a = randInt(10, 100) * 2;
+          answer = a / 2;
+          question = `${a} \u00f7 2 = ?`;
+        } else {
+          // ÷10
+          const a = randInt(2, 50) * 10;
+          answer = a / 10;
+          question = `${a} \u00f7 10 = ?`;
+        }
+        break;
+      }
+      case 4: {
+        // Book 12 Level 4: Operations up to 999, rounding to nearest 10
+        const r = Math.random();
+        if (r < 0.4) {
+          const op = Math.random() > 0.5 ? "+" : "-";
+          let a = randInt(100, 800);
+          let b = randInt(50, 300);
+          if (op === "+" && a + b > 999) b = 999 - a;
+          if (op === "-" && b > a) [a, b] = [b, a];
+          answer = op === "+" ? a + b : a - b;
+          question = `${a} ${op} ${b} = ?`;
+        } else {
+          // Round to nearest 10
+          const a = randInt(11, 995);
+          answer = Math.round(a / 10) * 10;
+          question = `Round ${a} to the nearest 10`;
+        }
+        break;
+      }
+      case 5: {
+        // Book 12 Level 5: Mixed operations up to 999, place value
+        const r = Math.random();
+        if (r < 0.3) {
+          // Place value: hundreds digit
+          const a = randInt(100, 999);
+          answer = Math.floor(a / 100);
+          question = `How many hundreds in ${a}?`;
+        } else if (r < 0.55) {
+          // Place value: tens digit
+          const a = randInt(100, 999);
+          answer = Math.floor((a % 100) / 10);
+          question = `What is the tens digit of ${a}?`;
+        } else if (r < 0.8) {
+          // Add/sub up to 999
+          const op = Math.random() > 0.5 ? "+" : "-";
+          let a = randInt(200, 700);
+          let b = randInt(50, 250);
+          if (op === "+" && a + b > 999) b = 999 - a;
+          if (op === "-" && b > a) [a, b] = [b, a];
+          answer = op === "+" ? a + b : a - b;
+          question = `${a} ${op} ${b} = ?`;
+        } else {
+          // ×2 or ×10 with bigger numbers
+          if (Math.random() > 0.5) {
+            const a = randInt(50, 450);
+            answer = a * 2;
+            question = `${a} \u00d7 2 = ?`;
+          } else {
+            const a = randInt(10, 99);
+            answer = a * 10;
+            question = `${a} \u00d7 10 = ?`;
+          }
+        }
+        break;
+      }
+    }
+
+    return { question, answer };
+  }
+
+  function generateMathProblem() {
+    const player = state.currentPlayer || "violet";
+    const level = state.mathLevel;
+
+    let result;
+    if (player === "violet") {
+      result = generateVioletProblem(level);
+    } else {
+      result = generateFletcherProblem(level);
+    }
+
+    const { question, answer } = result;
+
+    // Generate wrong answers (close to correct answer for challenge)
     const choices = [answer];
+    const spread = Math.max(5, Math.ceil(Math.abs(answer) * 0.2));
     while (choices.length < 4) {
       let wrong;
-      const offset = Math.floor(Math.random() * 10) + 1;
-      if (Math.random() > 0.5) {
-        wrong = answer + offset;
-      } else {
-        wrong = answer - offset;
-      }
-      if (wrong < 0) wrong = answer + offset + Math.floor(Math.random() * 5);
+      const offset = randInt(1, spread);
+      wrong = Math.random() > 0.5 ? answer + offset : answer - offset;
+      if (wrong < 0) wrong = answer + randInt(1, spread);
       if (!choices.includes(wrong)) {
         choices.push(wrong);
       }
@@ -874,7 +1058,7 @@
     const overlay = document.getElementById("math-overlay");
     overlay.classList.add("active");
 
-    currentMathProblem = generateMathProblem(state.difficulty);
+    currentMathProblem = generateMathProblem();
     document.getElementById("math-question").textContent =
       currentMathProblem.question;
     document.getElementById("math-feedback").textContent = "";
@@ -888,9 +1072,11 @@
       streakEl.textContent = "";
     }
 
-    // Difficulty controls
-    document.getElementById("math-level").textContent =
-      DIFF_NAMES[state.difficulty];
+    // Player and level display
+    const playerProfile = PLAYERS[state.currentPlayer];
+    document.getElementById("math-player-name").textContent =
+      playerProfile ? playerProfile.name : "";
+    document.getElementById("math-level").textContent = getLevelName();
 
     // Answers
     const answersDiv = document.getElementById("math-answers");
@@ -932,20 +1118,37 @@
     clearInterval(mathTimer);
     state.mathTotal++;
     const buttons = document.querySelectorAll(".math-answer-btn");
+    const maxLevel = PLAYERS[state.currentPlayer]
+      ? PLAYERS[state.currentPlayer].maxLevel
+      : 5;
+
+    let levelMsg = "";
 
     if (choice === currentMathProblem.answer) {
       // Correct!
       btn.classList.add("correct");
       state.mathCorrect++;
       state.mathStreak++;
-      const bonus = 50 * state.difficulty * (1 + state.mathStreak * 0.1);
+      state.mathWrongStreak = 0;
+      const bonus = 50 * state.mathLevel * (1 + state.mathStreak * 0.1);
       state.score += Math.round(bonus);
       state.multiplier = Math.min(
         5,
         1 + Math.floor(state.mathStreak / 2) * 0.5
       );
-      document.getElementById("math-feedback").textContent =
-        `Correct! +${Math.round(bonus)} points`;
+
+      // Level up after 3 correct in a row
+      if (state.mathStreak >= 3 && state.mathLevel < maxLevel) {
+        state.mathLevel++;
+        state.mathStreak = 0;
+        levelMsg = `Level up! Now on ${getLevelName()}`;
+        saveLevelProgress();
+      }
+
+      const feedbackText = levelMsg
+        ? `Correct! +${Math.round(bonus)} pts — ${levelMsg}`
+        : `Correct! +${Math.round(bonus)} points`;
+      document.getElementById("math-feedback").textContent = feedbackText;
       document.getElementById("math-feedback").className =
         "math-feedback correct-text";
       sfxCorrect();
@@ -953,9 +1156,21 @@
       // Wrong
       btn.classList.add("incorrect");
       state.mathStreak = 0;
+      state.mathWrongStreak++;
       state.multiplier = Math.max(1, state.multiplier - 0.5);
-      document.getElementById("math-feedback").textContent =
-        `The answer was ${currentMathProblem.answer}`;
+
+      // Level down after 2 wrong in a row
+      if (state.mathWrongStreak >= 2 && state.mathLevel > 1) {
+        state.mathLevel--;
+        state.mathWrongStreak = 0;
+        levelMsg = `Moved to ${getLevelName()}`;
+        saveLevelProgress();
+      }
+
+      const feedbackText = levelMsg
+        ? `Answer was ${currentMathProblem.answer} — ${levelMsg}`
+        : `The answer was ${currentMathProblem.answer}`;
+      document.getElementById("math-feedback").textContent = feedbackText;
       document.getElementById("math-feedback").className =
         "math-feedback incorrect-text";
       sfxWrong();
@@ -982,15 +1197,28 @@
         state.screen = "playing";
         state.lastMathDistance = state.distance;
       }
-    }, 1500);
+    }, levelMsg ? 2500 : 1500);
   }
 
   function handleMathTimeout() {
     state.mathTotal++;
     state.mathStreak = 0;
+    state.mathWrongStreak++;
     state.multiplier = Math.max(1, state.multiplier - 0.5);
+
+    let levelMsg = "";
+    const maxLevel = PLAYERS[state.currentPlayer]
+      ? PLAYERS[state.currentPlayer].maxLevel
+      : 5;
+    if (state.mathWrongStreak >= 2 && state.mathLevel > 1) {
+      state.mathLevel--;
+      state.mathWrongStreak = 0;
+      levelMsg = ` — Moved to ${getLevelName()}`;
+      saveLevelProgress();
+    }
+
     document.getElementById("math-feedback").textContent =
-      `Time's up! The answer was ${currentMathProblem.answer}`;
+      `Time's up! Answer was ${currentMathProblem.answer}${levelMsg}`;
     document.getElementById("math-feedback").className =
       "math-feedback incorrect-text";
     sfxWrong();
@@ -1022,8 +1250,7 @@
     document.getElementById("hud-coins").textContent = state.coins;
     document.getElementById("hud-multiplier").textContent =
       `x${state.multiplier.toFixed(1)}`;
-    document.getElementById("hud-difficulty").textContent =
-      DIFF_NAMES[state.difficulty];
+    document.getElementById("hud-difficulty").textContent = getLevelName();
   }
 
   // ===== GAME LOOP =====
@@ -1132,11 +1359,16 @@
   function showGameOverScreen() {
     state.screen = "gameover";
 
-    // Update high score
+    // Update high score (per player)
     const finalScore = Math.floor(state.score);
     if (finalScore > state.highScore) {
       state.highScore = finalScore;
-      localStorage.setItem("mathSurfersHighScore", state.highScore.toString());
+      if (state.currentPlayer) {
+        localStorage.setItem(
+          `mathSurfers_${state.currentPlayer}_highScore`,
+          state.highScore.toString()
+        );
+      }
     }
 
     // Show game over screen
@@ -1149,6 +1381,7 @@
       Math.floor(state.distance) + "m";
     document.getElementById("go-math").textContent =
       `${state.mathCorrect} / ${state.mathTotal}`;
+    document.getElementById("go-level").textContent = getLevelName();
     document.getElementById("go-highscore").textContent = state.highScore;
     document.getElementById("menu-high-score").textContent = state.highScore;
   }
@@ -1176,6 +1409,7 @@
     state.mathCorrect = 0;
     state.mathTotal = 0;
     state.mathStreak = 0;
+    state.mathWrongStreak = 0;
     runCycle = 0;
 
     // Clear old objects
@@ -1326,15 +1560,75 @@
     }
   }
 
+  // ===== LEVEL PERSISTENCE =====
+  function saveLevelProgress() {
+    if (!state.currentPlayer) return;
+    localStorage.setItem(
+      `mathSurfers_${state.currentPlayer}_level`,
+      state.mathLevel.toString()
+    );
+  }
+
+  function loadLevelProgress(player) {
+    const saved = localStorage.getItem(`mathSurfers_${player}_level`);
+    return saved ? parseInt(saved) : 1;
+  }
+
+  function selectPlayer(player) {
+    state.currentPlayer = player;
+    state.mathLevel = loadLevelProgress(player);
+
+    // Update high score to be per-player
+    const playerHighScore = localStorage.getItem(
+      `mathSurfers_${player}_highScore`
+    );
+    state.highScore = playerHighScore ? parseInt(playerHighScore) : 0;
+    document.getElementById("menu-high-score").textContent = state.highScore;
+
+    // Update player color on character
+    const profile = PLAYERS[player];
+    mat.player.color.setHex(profile.color);
+
+    // Go back to menu
+    document
+      .getElementById("player-select-screen")
+      .classList.remove("active");
+    document.getElementById("main-menu").classList.add("active");
+  }
+
+  function updateSettingsInfo() {
+    if (state.currentPlayer) {
+      const profile = PLAYERS[state.currentPlayer];
+      document.getElementById("settings-player-info").textContent =
+        `${profile.name} (${profile.book})`;
+      document.getElementById("settings-level-info").textContent =
+        getLevelName();
+      document.getElementById("diff-description").textContent =
+        getLevelDescription();
+    } else {
+      document.getElementById("settings-player-info").textContent =
+        "No player selected";
+      document.getElementById("settings-level-info").textContent = "-";
+      document.getElementById("diff-description").textContent = "";
+    }
+  }
+
   // ===== UI EVENT LISTENERS =====
 
   // Main Menu
   document.getElementById("play-btn").addEventListener("click", () => {
+    if (!state.currentPlayer) {
+      // Must select player first
+      document.getElementById("main-menu").classList.remove("active");
+      document.getElementById("player-select-screen").classList.add("active");
+      return;
+    }
     startGame();
     if (!state.animationId) gameLoop();
   });
 
   document.getElementById("settings-btn").addEventListener("click", () => {
+    updateSettingsInfo();
     document.getElementById("main-menu").classList.remove("active");
     document.getElementById("settings-screen").classList.add("active");
   });
@@ -1344,32 +1638,26 @@
     document.getElementById("how-to-play-screen").classList.add("active");
   });
 
+  // Player Selection
+  document
+    .getElementById("select-violet")
+    .addEventListener("click", () => selectPlayer("violet"));
+  document
+    .getElementById("select-fletcher")
+    .addEventListener("click", () => selectPlayer("fletcher"));
+  document
+    .getElementById("player-select-back")
+    .addEventListener("click", () => {
+      document
+        .getElementById("player-select-screen")
+        .classList.remove("active");
+      document.getElementById("main-menu").classList.add("active");
+    });
+
   // Settings
   document.getElementById("settings-back").addEventListener("click", () => {
     document.getElementById("settings-screen").classList.remove("active");
     document.getElementById("main-menu").classList.add("active");
-  });
-
-  document.querySelectorAll(".diff-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".diff-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.difficulty = parseInt(btn.dataset.level);
-      document.getElementById("diff-description").textContent =
-        DIFF_DESCRIPTIONS[state.difficulty];
-    });
-  });
-
-  document.querySelectorAll(".freq-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document
-        .querySelectorAll(".freq-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.mathFrequency = btn.dataset.freq;
-    });
   });
 
   document.getElementById("sound-toggle").addEventListener("click", (e) => {
@@ -1409,44 +1697,6 @@
     document.getElementById("gameover-screen").classList.remove("active");
     document.getElementById("main-menu").classList.add("active");
     state.screen = "menu";
-  });
-
-  // Math difficulty controls (in-game)
-  document.getElementById("math-easier").addEventListener("click", () => {
-    if (state.difficulty > 1) {
-      state.difficulty--;
-      document.getElementById("math-level").textContent =
-        DIFF_NAMES[state.difficulty];
-      // Sync settings buttons
-      document
-        .querySelectorAll(".diff-btn")
-        .forEach((b) =>
-          b.classList.toggle(
-            "active",
-            parseInt(b.dataset.level) === state.difficulty
-          )
-        );
-      document.getElementById("diff-description").textContent =
-        DIFF_DESCRIPTIONS[state.difficulty];
-    }
-  });
-
-  document.getElementById("math-harder").addEventListener("click", () => {
-    if (state.difficulty < 4) {
-      state.difficulty++;
-      document.getElementById("math-level").textContent =
-        DIFF_NAMES[state.difficulty];
-      document
-        .querySelectorAll(".diff-btn")
-        .forEach((b) =>
-          b.classList.toggle(
-            "active",
-            parseInt(b.dataset.level) === state.difficulty
-          )
-        );
-      document.getElementById("diff-description").textContent =
-        DIFF_DESCRIPTIONS[state.difficulty];
-    }
   });
 
   // ===== RESIZE HANDLER =====
