@@ -973,11 +973,15 @@
 
     updateHUD();
 
-    // Continue after delay
+    // After answering, proceed to game over screen
     setTimeout(() => {
       document.getElementById("math-overlay").classList.remove("active");
-      state.screen = "playing";
-      state.lastMathDistance = state.distance;
+      if (state.isGameOver) {
+        showGameOverScreen();
+      } else {
+        state.screen = "playing";
+        state.lastMathDistance = state.distance;
+      }
     }, 1500);
   }
 
@@ -1003,8 +1007,12 @@
 
     setTimeout(() => {
       document.getElementById("math-overlay").classList.remove("active");
-      state.screen = "playing";
-      state.lastMathDistance = state.distance;
+      if (state.isGameOver) {
+        showGameOverScreen();
+      } else {
+        state.screen = "playing";
+        state.lastMathDistance = state.distance;
+      }
     }, 2000);
   }
 
@@ -1103,17 +1111,7 @@
     // Coin collection
     checkCoinCollection();
 
-    // Math trigger
-    const mathDist =
-      state.mathFrequency === "frequent"
-        ? MATH_TRIGGER_DISTANCE_FREQUENT
-        : state.mathFrequency === "rare"
-          ? MATH_TRIGGER_DISTANCE_RARE
-          : MATH_TRIGGER_DISTANCE_NORMAL;
-
-    if (state.distance - state.lastMathDistance >= mathDist) {
-      showMathOverlay();
-    }
+    // Math problems now only appear between turns (at game over)
 
     // Update HUD periodically
     if (Math.floor(state.distance) % 5 === 0) updateHUD();
@@ -1124,8 +1122,15 @@
 
   // ===== GAME OVER =====
   function gameOver() {
-    state.screen = "gameover";
     state.isGameOver = true;
+    document.getElementById("game-hud").classList.add("hidden");
+
+    // Show math problem between turns
+    showMathOverlay();
+  }
+
+  function showGameOverScreen() {
+    state.screen = "gameover";
 
     // Update high score
     const finalScore = Math.floor(state.score);
@@ -1135,7 +1140,6 @@
     }
 
     // Show game over screen
-    document.getElementById("game-hud").classList.add("hidden");
     const goScreen = document.getElementById("gameover-screen");
     goScreen.classList.add("active");
 
