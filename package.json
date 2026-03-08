@@ -1,0 +1,12 @@
+{
+  "name": "math-surfers",
+  "version": "1.0.0",
+  "description": "Math Surfers - A Subway Surfers-style runner with math problems",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
