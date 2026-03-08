@@ -8,9 +8,9 @@
   // ===== CONSTANTS =====
   const LANE_WIDTH = 2.5;
   const LANES = [-LANE_WIDTH, 0, LANE_WIDTH];
-  const GAME_SPEED_INITIAL = 0.25;
-  const GAME_SPEED_MAX = 0.55;
-  const GAME_SPEED_INCREASE = 0.0003;
+  const GAME_SPEED_INITIAL = 0.10;
+  const GAME_SPEED_MAX = 0.30;
+  const GAME_SPEED_INCREASE = 0.00008;
   const JUMP_FORCE = 0.28;
   const GRAVITY = 0.012;
   const ROLL_DURATION = 40;
@@ -18,9 +18,9 @@
   const OBSTACLE_SPAWN_INTERVAL_MAX = 90;
   const COIN_SPAWN_INTERVAL = 25;
   const RENDER_DISTANCE = 120;
-  const MATH_TRIGGER_DISTANCE_NORMAL = 800;
-  const MATH_TRIGGER_DISTANCE_FREQUENT = 400;
-  const MATH_TRIGGER_DISTANCE_RARE = 1200;
+  const MATH_TRIGGER_DISTANCE_NORMAL = 200;
+  const MATH_TRIGGER_DISTANCE_FREQUENT = 100;
+  const MATH_TRIGGER_DISTANCE_RARE = 400;
   const MATH_TIMER_SECONDS = 15;
 
   // ===== GAME STATE =====
@@ -681,26 +681,34 @@
   function checkCollisions() {
     const px = playerGroup.position.x;
     const py = state.playerY;
-    const playerLaneIdx = state.targetLane;
 
     for (const obs of state.obstacles) {
       const dz = obs.position.z;
-      if (dz > 2 || dz < -3) continue;
+
+      // Quick Z reject - only check nearby obstacles
+      if (dz > 1.5 || dz < -2) continue;
 
       const obsLane = obs.userData.lane;
 
-      // Check if in same lane
-      if (Math.abs(px - LANES[obsLane]) > 1.0) continue;
+      // Check if in same lane (generous margin)
+      if (Math.abs(px - LANES[obsLane]) > 1.1) continue;
 
-      // Z proximity check
-      const zRange = obs.userData.type === "train" ? obs.userData.length / 2 : 1;
-      if (dz < -zRange || dz > 1.5) continue;
+      // Z proximity check - tighter for non-trains
+      if (obs.userData.type === "train") {
+        const halfLen = obs.userData.length / 2;
+        if (dz < -halfLen + 0.5 || dz > 1.2) continue;
+      } else {
+        if (dz < -0.6 || dz > 1.0) continue;
+      }
 
       // Roll under tall barriers
       if (obs.userData.canRollUnder && state.isRolling) continue;
 
-      // Jump over barriers (not trains)
-      if (obs.userData.type === "barrier" && py > 1.3) continue;
+      // Jump over barriers and tall barriers
+      if (obs.userData.type === "barrier" && py > 0.8) continue;
+      if (obs.userData.type === "tallBarrier" && py > 1.5) continue;
+
+      // Can't jump over trains (too tall)
 
       // Collision!
       return true;
@@ -1088,6 +1096,7 @@
     if (checkCollisions()) {
       sfxCrash();
       gameOver();
+      state.animationId = requestAnimationFrame(gameLoop);
       return;
     }
 
@@ -1157,8 +1166,8 @@
     state.rollTimer = 0;
     state.isPaused = false;
     state.isGameOver = false;
-    state.obstacleTimer = 60;
-    state.coinTimer = 30;
+    state.obstacleTimer = 120;
+    state.coinTimer = 40;
     state.lastMathDistance = 0;
     state.mathCorrect = 0;
     state.mathTotal = 0;
@@ -1227,13 +1236,13 @@
       case "a":
       case "A":
         e.preventDefault();
-        moveLeft();
+        moveRight();
         break;
       case "ArrowRight":
       case "d":
       case "D":
         e.preventDefault();
-        moveRight();
+        moveLeft();
         break;
       case "ArrowUp":
       case "w":
@@ -1287,8 +1296,8 @@
 
       if (dt < 300 && (Math.abs(dx) > minSwipe || Math.abs(dy) > minSwipe)) {
         if (Math.abs(dx) > Math.abs(dy)) {
-          if (dx > 0) moveRight();
-          else moveLeft();
+          if (dx > 0) moveLeft();
+          else moveRight();
         } else {
           if (dy < 0) jump();
           else roll();
